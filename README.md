@@ -45,8 +45,9 @@ The `setup-gnustep-ghostbsd.sh` script installs and configures GNUstep on GhostB
     ``` 
 The script updates packages, installs dependencies, builds GNUstep from ports if needed, configures shells, runs tests, and generates a verification report.
 
-    Verify Installation:
+Verify Installation:
         For Fish shell:
+
         ```sh
         sudo cp /root/.config/fish/conf.d/gnustep.fish ~/.config/fish/conf.d/
         source ~/.config/fish/conf.d/gnustep.fish
@@ -59,14 +60,17 @@ Expected gnustep-config output:
             -I/usr/local/GNUstep/System/Library/Headers -L/usr/local/GNUstep/System/Library/Libraries
 
         For Bash shell:
+
         ```sh
         bash
         echo $GNUSTEP_SYSTEM_ROOT
         gnustep-config --objc-flags
         ```
 
-    Review Verification Report:
+Review Verification Report:
+
         Check the log file for the report:
+
         ```sh
         cat /tmp/gnustep_install_20250615_*.log | grep -A 30 "Verification Report"
         ```

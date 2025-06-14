@@ -1,4 +1,4 @@
-# setup-gnustep-ghostbsd
+# setup-gnustep-ghostbsd.sh
 
 A shell script to automate the installation and configuration of the GNUstep development environment on GhostBSD 25.01.
 

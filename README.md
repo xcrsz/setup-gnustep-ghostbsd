@@ -39,14 +39,15 @@ The `setup-gnustep-ghostbsd.sh` script installs and configures GNUstep on GhostB
    chmod +x setup-gnustep-ghostbsd.sh
    ```
 
-    Run the Script:
+Run the Script:
     ```sh
     sudo sh ./setup-gnustep-ghostbsd.sh
     ``` 
 The script updates packages, installs dependencies, builds GNUstep from ports if needed, configures shells, runs tests, and generates a verification report.
 
 Verify Installation:
-        For Fish shell:
+
+For Fish shell:
 
         ```sh
         sudo cp /root/.config/fish/conf.d/gnustep.fish ~/.config/fish/conf.d/
@@ -59,7 +60,7 @@ Expected gnustep-config output:
 
             -I/usr/local/GNUstep/System/Library/Headers -L/usr/local/GNUstep/System/Library/Libraries
 
-        For Bash shell:
+For Bash shell:
 
         ```sh
         bash
@@ -69,82 +70,90 @@ Expected gnustep-config output:
 
 Review Verification Report:
 
-        Check the log file for the report:
+Check the log file for the report:
 
         ```sh
         cat /tmp/gnustep_install_20250615_*.log | grep -A 30 "Verification Report"
         ```
 
-        Look for [PASS]/[FAIL] statuses for packages, configuration, environment variables, tests, and optional tools.
+Look for [PASS]/[FAIL] statuses for packages, configuration, environment variables, tests, and optional tools.
 
-    Test GUI Application:
+Test GUI Application:
+
     ```sh
     bash
     /tmp/gui
    ```
 
-        Requires X11 (run startx if not active).
+Requires X11 (run startx if not active).
 
 ## Features
 
-    Package Conflict Handling: Checks for and removes existing GNUstep packages (e.g., gnustep-make) before building from ports.
-    Non-Interactive Builds: Uses -DBATCH to avoid configuration dialogs (e.g., gmake-4.4.1).
-    Clang Compilation: Builds with Clang 19.1.7, eliminating GCC dependency.
-    Shell Configuration: Sets up Bash (/etc/profile) and Fish (~/.config/fish/conf.d/gnustep.fish) environments.
-    Verification Report: Summarizes:
-        Package installation status.
-        gnustep-config --objc-flags output.
-        GNUSTEP_SYSTEM_ROOT environment variable.
-        Test program results (hello.m, gui.m).
-        Optional tools (gorm, projectcenter).
-    Error Handling: Logs detailed errors to /tmp/gnustep_build_*.log and /tmp/gnustep_install_*.log.
-    Ports Management: Clones GhostBSD ports tree (https://github.com/ghostbsd/ghostbsd-ports.git) and handles /usr/ports conflicts.
+Package Conflict Handling: Checks for and removes existing GNUstep packages (e.g., gnustep-make) before building from ports.
+Non-Interactive Builds: Uses -DBATCH to avoid configuration dialogs (e.g., gmake-4.4.1).
+Clang Compilation: Builds with Clang 19.1.7, eliminating GCC dependency.
+Shell Configuration: Sets up Bash (/etc/profile) and Fish (~/.config/fish/conf.d/gnustep.fish) environments.
+Verification Report: Summarizes:
+    Package installation status.
+    gnustep-config --objc-flags output.
+    GNUSTEP_SYSTEM_ROOT environment variable.
+    Test program results (hello.m, gui.m).
+    Optional tools (gorm, projectcenter).
+Error Handling: Logs detailed errors to /tmp/gnustep_build_*.log and /tmp/gnustep_install_*.log.
+Ports Management: Clones GhostBSD ports tree (https://github.com/ghostbsd/ghostbsd-ports.git) and handles /usr/ports conflicts.
 
 ## Troubleshooting
 If the script fails or the verification report shows [FAIL] statuses:
 
-    Check Logs:
-        Build log:
+Check Logs:
+Build log:
+
         ```sh
         cat /tmp/gnustep_build_gnustep-make.log
         ```
 
-        Main log:
+Main log:
+
         ```sh
         cat /tmp/gnustep_install_20250615_*.log
         ```
 
-    Verify Dependencies:
+Verify Dependencies:
+
     ```sh
     pkg info | grep -E 'libobjc2|GhostBSD.*-dev|llvm'
     ```
 
-        Ensure libobjc2, GhostBSD*-dev, and llvm19 are installed.
-    Check Disk Space:
+Ensure libobjc2, GhostBSD*-dev, and llvm19 are installed.
+Check Disk Space:
+
     ```sh
     df -h /
     ```
 
-        Ensure at least 512 MB free.
-    Inspect Configuration Errors:
+Ensure at least 512 MB free.
+Inspect Configuration Errors:
+
     ```sh
     cat /usr/ports/devel/gnustep-make/work/gnustep-make-*/config.log | grep -i error
     ```
 
-   ## Common Issues:
-        Package Conflicts: The script removes conflicting packages, but manual removal may be needed:
+## Common Issues:
+Package Conflicts: The script removes conflicting packages, but manual removal may be needed:
+
         ```sh
         sudo pkg delete -f gnustep-make
         ```
 
-        Empty gnustep-config Output: Indicates a misconfigured gnustep-make. The script builds from ports to resolve this.
-        X11 Not Running: For GUI tests, ensure X11 is active:
+Empty gnustep-config Output: Indicates a misconfigured gnustep-make. The script builds from ports to resolve this.
+X11 Not Running: For GUI tests, ensure X11 is active:
+
         ```sh
         startx
         ps aux | grep Xorg
         ```
 
-    ## Recovery Options (logged on error):
+## Recovery Options (logged on error):
         Check network: ping freebsd.org
         Reinstall package: sudo pkg install -f <package>
         Reclone ports: sudo git clone https://github.com/ghostbsd/ghostbsd-ports.git /usr/ports

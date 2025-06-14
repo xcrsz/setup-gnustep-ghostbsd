@@ -2,10 +2,10 @@
 
 # Script: setup-gnustep-ghostbsd.sh
 # Purpose: Install GNUstep development environment on GhostBSD 25.01
-# Version: 0.01
+# Version: 8.20
 # Date: June 15, 2025
 # Requirements: GhostBSD 25.01 (FreeBSD 14.0 base, BSD rc init), root privileges, internet access
-# Notes: Configures for both Bash and Fish shells before GNUstep verification, uses GhostBSD ports, builds with Clang, non-interactive, checks and removes existing gnustep-make package, includes verification report
+# Notes: Configures for both Bash and Fish shells, uses GhostBSD ports, builds with Clang, non-interactive, checks and removes existing gnustep-make package, includes verification report, ensures GNUstep.sh sourcing
 
 # Exit on error
 set -e
@@ -157,9 +157,9 @@ clear_ports_dir() {
 check_port_deps() {
     pkg="$1"
     log "Checking dependencies for $pkg..."
-    if ! pkg_info=$(pkg info -e 'libobjc2|GhostBSD.*-dev|llvm19' 2>> "$LOGFILE"); then
-        log "WARNING: Required dependencies (libobjc2, GhostBSD*-dev, llvm19) not fully installed."
-        check_status "pkg install -y -g 'GhostBSD*-dev' libobjc2 llvm19" "Installing required dependencies..." 300
+    if ! pkg_info=$(pkg info -e 'libobjc2|GhostBSD.*-dev|llvm19|libX11|libXext|libXmu|libXt|cairo' 2>> "$LOGFILE"); then
+        log "WARNING: Required dependencies not fully installed."
+        check_status "pkg install -y -g 'GhostBSD*-dev' libobjc2 llvm19 libX11 libXext libXmu libXt cairo" "Installing required dependencies..." 300
     fi
     log "Dependencies satisfied."
 }
@@ -172,6 +172,29 @@ remove_existing_gnustep() {
         check_status "pkg delete -f -y gnustep gnustep-make gnustep-base gnustep-gui gnustep-back" "Removing existing GNUstep packages..." 60
     fi
     log "No conflicting GNUstep packages found or successfully removed."
+}
+
+# Function to source GNUstep.sh
+source_gnustep_sh() {
+    log "Sourcing GNUstep.sh..."
+    if [ -f "/usr/local/GNUstep/System/Library/Makefiles/GNUstep.sh" ]; then
+        . /usr/local/GNUstep/System/Library/Makefiles/GNUstep.sh
+        if [ -z "$GNUSTEP_SYSTEM_ROOT" ]; then
+            log "WARNING: GNUstep.sh sourced but GNUSTEP_SYSTEM_ROOT not set."
+            export GNUSTEP_SYSTEM_ROOT=/usr/local/GNUstep/System
+            export PATH=$GNUSTEP_SYSTEM_ROOT/Tools:$PATH
+            export LD_LIBRARY_PATH=$GNUSTEP_SYSTEM_ROOT/Libraries:$LD_LIBRARY_PATH
+            export LIBRARY_PATH=$GNUSTEP_SYSTEM_ROOT/Libraries:$LIBRARY_PATH
+            export CPATH=$GNUSTEP_SYSTEM_ROOT/Headers:$CPATH
+            export MANPATH=$GNUSTEP_SYSTEM_ROOT/Documentation/man:$MANPATH
+            export GNUSTEP_MAKEFILES=$GNUSTEP_SYSTEM_ROOT/Library/Makefiles
+        fi
+        log "GNUstep.sh sourced successfully."
+    else
+        log "WARNING: GNUstep.sh not found. Attempting ports rebuild..."
+        install_from_ports "gnustep-make" "devel/gnustep-make"
+        . /usr/local/GNUstep/System/Library/Makefiles/GNUstep.sh
+    fi
 }
 
 # Function to generate verification report
@@ -193,14 +216,14 @@ generate_verification_report() {
 
     # Check gnustep-config
     log "2. GNUstep Configuration Status:"
-    if gnustep_config_output=$(gnustep-config --objc-flags 2>/dev/null); then
+    if gnustep_config_output=$(gnustep-config --objc-flags 2>/dev/null) && [ -n "$gnustep_config_output" ]; then
         if echo "$gnustep_config_output" | grep -q "-I"; then
             log "   - gnustep-config --objc-flags: Valid output ($gnustep_config_output) [PASS]"
         else
-            log "   - gnustep-config --objc-flags: Empty or invalid output [FAIL]"
+            log "   - gnustep-config --objc-flags: Invalid output ($gnustep_config_output) [FAIL]"
         fi
     else
-        log "   - gnustep-config --objc-flags: Command failed [FAIL]"
+        log "   - gnustep-config --objc-flags: Command failed or empty output [FAIL]"
     fi
 
     # Check GNUSTEP_SYSTEM_ROOT
@@ -263,6 +286,8 @@ install_from_ports() {
         error_exit "Ports path /usr/ports/$port_path not found"
     fi
     log "Building $pkg non-interactively. Detailed log at $build_log..."
+    # Source GNUstep.sh before building
+    source_gnustep_sh
     if ! run_with_spinner "cd /usr/ports/$port_path && make -DBATCH install clean > $build_log 2>&1" "Building $pkg from ports..." 7200; then
         log "ERROR: Failed to build $pkg. Checking log for details..."
         tail -n 20 "$build_log" >> "$LOGFILE"
@@ -351,19 +376,7 @@ fi
 
 # Configure Bash environment
 log "Configuring GNUstep environment for Bash..."
-if [ ! -f "/usr/local/GNUstep/System/Library/Makefiles/GNUstep.sh" ]; then
-    log "WARNING: GNUstep.sh missing. Forcing GhostBSD ports rebuild..."
-    install_from_ports "gnustep-make" "devel/gnustep-make"
-    install_from_ports "gnustep-base" "lang/gnustep-base"
-    install_from_ports "gnustep-gui" "x11-toolkits/gnustep-gui"
-    install_from_ports "gnustep-back" "x11-toolkits/gnustep-back"
-    install_from_ports "gnustep" "lang/gnustep"
-fi
-check_file /usr/local/GNUstep/System/Library/Makefiles/GNUstep.sh "GNUstep.sh missing after rebuild"
-if ! grep -q "GNUSTEP_SYSTEM_ROOT" /usr/local/GNUstep/System/Library/Makefiles/GNUstep.sh; then
-    log "WARNING: GNUstep.sh does not set GNUSTEP_SYSTEM_ROOT. Setting manually..."
-    echo "export GNUSTEP_SYSTEM_ROOT=/usr/local/GNUstep/System" >> /usr/local/GNUstep/System/Library/Makefiles/GNUstep.sh
-fi
+source_gnustep_sh
 if ! grep -q "GNUstep.sh" /etc/profile; then
     echo "source /usr/local/GNUstep/System/Library/Makefiles/GNUstep.sh" >> /etc/profile
     check_status "echo 'source /usr/local/GNUstep/System/Library/Makefiles/GNUstep.sh' >> /etc/profile" "Configuring /etc/profile..." 10
@@ -371,36 +384,6 @@ if ! grep -q "GNUstep.sh" /etc/profile; then
 else
     log "GNUstep.sh already in /etc/profile"
 fi
-if ! . /usr/local/GNUstep/System/Library/Makefiles/GNUstep.sh; then
-    log "WARNING: Failed to source GNUstep.sh. Forcing GhostBSD ports rebuild..."
-    install_from_ports "gnustep-make" "devel/gnustep-make"
-    install_from_ports "gnustep-base" "lang/gnustep-base"
-    install_from_ports "gnustep-gui" "x11-toolkits/gnustep-gui"
-    install_from_ports "gnustep-back" "x11-toolkits/gnustep-back"
-    install_from_ports "gnustep" "lang/gnustep"
-    . /usr/local/GNUstep/System/Library/Makefiles/GNUstep.sh
-fi
-log "Verifying GNUSTEP_SYSTEM_ROOT for Bash..."
-if [ -z "$GNUSTEP_SYSTEM_ROOT" ]; then
-    log "WARNING: GNUSTEP_SYSTEM_ROOT not set. Setting manually and forcing ports rebuild..."
-    export GNUSTEP_SYSTEM_ROOT=/usr/local/GNUstep/System
-    export PATH=$GNUSTEP_SYSTEM_ROOT/Tools:$PATH
-    export LD_LIBRARY_PATH=$GNUSTEP_SYSTEM_ROOT/Libraries:$LD_LIBRARY_PATH
-    export LIBRARY_PATH=$GNUSTEP_SYSTEM_ROOT/Libraries:$LIBRARY_PATH
-    export CPATH=$GNUSTEP_SYSTEM_ROOT/Headers:$CPATH
-    export MANPATH=$GNUSTEP_SYSTEM_ROOT/Documentation/man:$MANPATH
-    export GNUSTEP_MAKEFILES=$GNUSTEP_SYSTEM_ROOT/Library/Makefiles
-    install_from_ports "gnustep-make" "devel/gnustep-make"
-    install_from_ports "gnustep-base" "lang/gnustep-base"
-    install_from_ports "gnustep-gui" "x11-toolkits/gnustep-gui"
-    install_from_ports "gnustep-back" "x11-toolkits/gnustep-back"
-    install_from_ports "gnustep" "lang/gnustep"
-    . /usr/local/GNUstep/System/Library/Makefiles/GNUstep.sh
-    if [ -z "$GNUSTEP_SYSTEM_ROOT" ]; then
-        error_exit "GNUSTEP_SYSTEM_ROOT not set for Bash after rebuild"
-    fi
-fi
-log "GNUSTEP_SYSTEM_ROOT: $GNUSTEP_SYSTEM_ROOT"
 
 # Configure Fish environment
 log "Configuring GNUstep environment for Fish..."
@@ -435,17 +418,19 @@ if ! run_with_spinner "gnustep-config --objc-flags > $gnustep_config_output 2>> 
     install_from_ports "gnustep-gui" "x11-toolkits/gnustep-gui"
     install_from_ports "gnustep-back" "x11-toolkits/gnustep-back"
     install_from_ports "gnustep" "lang/gnustep"
+    source_gnustep_sh
     gnustep-config --objc-flags > "$gnustep_config_output" 2>> "$LOGFILE"
 fi
-if ! grep -q "-I" "$gnustep_config_output"; then
+if ! grep -q "-I" "$gnustep_config_output" 2>/dev/null; then
     log "WARNING: gnustep-config --objc-flags returned empty output. Forcing GhostBSD ports rebuild..."
     install_from_ports "gnustep-make" "devel/gnustep-make"
     install_from_ports "gnustep-base" "lang/gnustep-base"
     install_from_ports "gnustep-gui" "x11-toolkits/gnustep-gui"
     install_from_ports "gnustep-back" "x11-toolkits/gnustep-back"
     install_from_ports "gnustep" "lang/gnustep"
+    source_gnustep_sh
     gnustep-config --objc-flags > "$gnustep_config_output" 2>> "$LOGFILE"
-    if ! grep -q "-I" "$gnustep_config_output"; then
+    if ! grep -q "-I" "$gnustep_config_output" 2>/dev/null; then
         log "ERROR: gnustep-config still returns empty output after ports rebuild."
         error_exit "gnustep-config configuration failed"
     fi
@@ -473,6 +458,7 @@ int main(int argc, char *argv[]) {
 EOF
 check_file /tmp/hello.m "Failed to create test program"
 log "Compiling test program..."
+source_gnustep_sh
 check_status "clang \`gnustep-config --objc-flags\` -o /tmp/hello /tmp/hello.m -lgnustep-base" "Compiling test program..." 10
 check_file /tmp/hello "Test program binary not created"
 log "Running test program..."
@@ -496,6 +482,7 @@ int main(int argc, char *argv[]) {
 EOF
 check_file /tmp/gui.m "Failed to create GUI test program"
 log "Compiling GUI test program..."
+source_gnustep_sh
 check_status "clang \`gnustep-config --objc-flags\` -o /tmp/gui /tmp/gui.m -lgnustep-base -lgnustep-gui" "Compiling GUI test program..." 10
 check_file /tmp/gui "GUI test program binary not created"
 log "GUI test program compiled. Run '/tmp/gui' manually to verify GUI (requires X11)."
